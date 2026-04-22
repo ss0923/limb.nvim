@@ -1,0 +1,74 @@
+name: Bug report
+description: A defect in the Neovim plugin's behavior
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search [existing issues](https://github.com/ss0923/limb.nvim/issues?q=is%3Aissue) before filing. Run `:checkhealth limb` and include the output below.
+
+  - type: input
+    id: nvim-version
+    attributes:
+      label: Neovim version
+      description: Output of `nvim --version` (first line).
+      placeholder: NVIM v0.11.0
+    validations:
+      required: true
+
+  - type: input
+    id: limb-version
+    attributes:
+      label: Limb binary version
+      description: Output of `limb --version`.
+      placeholder: limb 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-commit
+    attributes:
+      label: Plugin commit
+      description: Short SHA of limb.nvim currently installed.
+      placeholder: abc1234
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.0 / Ubuntu 24.04 / Windows 11
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Steps from a minimal config (ideally a minimal `init.lua` that only loads `limb.nvim`).
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include `:messages` output if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: checkhealth
+    attributes:
+      label: ":checkhealth limb output"
+      render: text
+    validations:
+      required: false
