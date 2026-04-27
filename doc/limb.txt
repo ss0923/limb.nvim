@@ -1,0 +1,249 @@
+*limb.txt*    Neovim integration for the limb worktree CLI
+
+==============================================================================
+CONTENTS                                                       *limb-contents*
+
+    1. Introduction ........................... |limb-introduction|
+    2. Requirements ........................... |limb-requirements|
+    3. Installation ........................... |limb-installation|
+    4. Commands ............................... |limb-commands|
+        4.1 :LimbPick ......................... |:LimbPick|
+        4.2 :LimbStatus ....................... |:LimbStatus|
+        4.3 :LimbAdd .......................... |:LimbAdd|
+        4.4 :LimbRemove ....................... |:LimbRemove|
+        4.5 :LimbUpdate ....................... |:LimbUpdate|
+        4.6 :LimbClean ........................ |:LimbClean|
+        4.7 :Limb ............................. |:Limb|
+    5. Configuration .......................... |limb-configuration|
+    6. Health ................................. |limb-health|
+    7. Tmux integration ....................... |limb-tmux|
+    8. Snacks integration ..................... |limb-snacks|
+    9. Keymaps ................................ |limb-keymaps|
+
+==============================================================================
+1. INTRODUCTION                                            *limb-introduction*
+
+limb.nvim wraps the `limb` CLI (https://github.com/ss0923/limb), exposing
+worktree management directly from Neovim. The plugin offers six dedicated
+commands for the common flows and a generic |:Limb| passthrough for the
+rest of limb's surface.
+
+==============================================================================
+2. REQUIREMENTS                                            *limb-requirements*
+
+  - Neovim 0.10 or later (uses `vim.system` and `vim.health`).
+  - The `limb` binary on $PATH. Override via |limb-configuration|.
+
+==============================================================================
+3. INSTALLATION                                            *limb-installation*
+
+With lazy.nvim:
+>lua
+    {
+      "ss0923/limb.nvim",
+      cmd = { "Limb", "LimbPick", "LimbStatus", "LimbAdd",
+              "LimbRemove", "LimbUpdate", "LimbClean" },
+      opts = {},
+    }
+<
+
+Calling `setup()` is optional. Registration happens in plugin/limb.lua.
+
+==============================================================================
+4. COMMANDS                                                    *limb-commands*
+
+------------------------------------------------------------------------------
+4.1 :LimbPick                                                       *:LimbPick*
+
+    :LimbPick
+
+Fuzzy picker over every worktree across all configured `projects.roots`.
+Selecting an entry changes Neovim's cwd to it. Inside tmux, also writes a
+`mark-cd` marker so the parent shell follows on its next prompt.
+
+Bare and prunable entries are filtered out. Locked entries are surfaced
+with a `[locked]` marker.
+
+------------------------------------------------------------------------------
+4.2 :LimbStatus                                                   *:LimbStatus*
+
+    :LimbStatus[!]
+
+Opens `limb status` in a centered floating window. When Neovim's cwd is
+outside any tracked repo, falls back to `limb status --all` automatically.
+The bang form (`:LimbStatus!`) forces `--all` regardless of cwd.
+
+------------------------------------------------------------------------------
+4.3 :LimbAdd                                                         *:LimbAdd*
+
+    :LimbAdd[!] [name] [base]
+
+Create a new worktree. With no arguments, prompts via |vim.ui.input| for a
+name and an optional base commit-ish. The bang form switches into the new
+worktree on success (overrides `switch_after_add`).
+
+Examples:
+>vim
+    :LimbAdd my-feature
+    :LimbAdd! hotfix main
+<
+
+------------------------------------------------------------------------------
+4.4 :LimbRemove                                                   *:LimbRemove*
+
+    :LimbRemove[!] [name]
+
+Remove a worktree. With no name, presents a picker of the current repo's
+removable worktrees. Prompts to confirm unless the bang form is used. The
+bang form also passes `--force` to limb (skip git's safety prompts).
+
+------------------------------------------------------------------------------
+4.5 :LimbUpdate                                                   *:LimbUpdate*
+
+    :LimbUpdate[!]
+
+Fetch + fast-forward worktrees in the current repo. Long-running; runs
+asynchronously and notifies on start and completion. Output is shown in a
+floating window. The bang form passes `--ff-only` (skip the fetch step).
+
+------------------------------------------------------------------------------
+4.6 :LimbClean                                                     *:LimbClean*
+
+    :LimbClean[!]
+
+Remove worktrees whose upstream branches are gone from origin. Without
+the bang, runs `--dry-run --json` first and shows the candidates in a
+floating window with `a` to apply and `q` to dismiss. The bang form skips
+the preview and applies immediately.
+
+------------------------------------------------------------------------------
+4.7 :Limb                                                              *:Limb*
+
+    :Limb <subcommand> [args...]
+
+Generic passthrough to the `limb` CLI. Renders combined stdout/stderr in a
+floating window, or notifies on empty output. Use this for subcommands not
+covered by a dedicated wrapper (lock, unlock, rename, prune, repair,
+setup, doctor, config, migrate).
+
+Subcommand completion is provided.
+
+Examples:
+>vim
+    :Limb lock production --reason "release"
+    :Limb rename old-name new-name
+    :Limb doctor
+    :Limb config
+<
+
+==============================================================================
+5. CONFIGURATION                                          *limb-configuration*
+
+`setup()` is optional. Defaults work out of the box.
+>lua
+    require("limb").setup({
+      binary = "limb",
+      on_change_dir = function(path)
+        local ok, snacks = pcall(require, "snacks")
+        if ok and snacks.picker then
+          snacks.picker.files()
+        end
+      end,
+      switch_after_add = true,
+      confirm_destructive = true,
+      notify = { title = "limb" },
+      float = {
+        border = "rounded",
+        width = function()
+          return math.max(60, math.min(120, vim.o.columns - 10))
+        end,
+        height = function(n)
+          return math.max(1, math.min(n + 2, vim.o.lines - 6))
+        end,
+      },
+    })
+<
+
+`setup()` warns if it receives an unknown top-level key.
+
+                                                       *limb-config-binary*
+binary ~
+    Path to the `limb` executable. Default: "limb" (resolved from $PATH).
+
+                                              *limb-config-on_change_dir*
+on_change_dir ~
+    Callback invoked after :LimbPick (and :LimbAdd when switching) cd's
+    into a worktree. Receives the destination path. Set to `false` to
+    disable. Default: opens the snacks.nvim file picker if available.
+
+                                          *limb-config-switch_after_add*
+switch_after_add ~
+    When true, :LimbAdd cd's into the newly-created worktree on success.
+    Overridable per-invocation by the bang form. Default: true.
+
+                                       *limb-config-confirm_destructive*
+confirm_destructive ~
+    When true, :LimbRemove and :LimbClean prompt for confirmation before
+    acting. The bang form on either command skips the prompt. Default: true.
+
+                                                *limb-config-float*
+float ~
+    Floating window styling. `width()` and `height(n)` are functions; `n`
+    is the line count of the buffer.
+
+                                                  *limb-config-cwd*
+A note on cwd ~
+    limb resolves the target repo from the process cwd unless `--repo` is
+    passed. The plugin runs `limb` with Neovim's cwd, which is set by
+    :cd, :tcd, :lcd, or `autochdir`. If your status/update is targeting
+    the wrong repo, change cwd first or use the bang form to force --all.
+
+==============================================================================
+6. HEALTH                                                        *limb-health*
+
+`:checkhealth limb` reports:
+  - whether the `limb` binary is reachable
+  - the binary version
+  - whether the session is inside tmux
+  - whether `projects.roots` is configured (warns if empty)
+  - the output of `limb doctor`
+
+==============================================================================
+7. TMUX INTEGRATION                                                *limb-tmux*
+
+When Neovim runs inside tmux, :LimbPick and :LimbAdd (with switch) write a
+`mark-cd` marker. The parent shell's `precmd` hook (installed by
+`limb init <shell>`) consumes the marker on the next prompt and changes
+directory, so editor-driven worktree switches survive `:q`.
+
+==============================================================================
+8. SNACKS INTEGRATION                                            *limb-snacks*
+
+The default `on_change_dir` opens the `snacks.nvim`
+(https://github.com/folke/snacks.nvim) file picker after :LimbPick if
+snacks is installed. Replace the callback to wire up another picker:
+>lua
+    require("limb").setup({
+      on_change_dir = function(_path)
+        require("telescope.builtin").find_files()
+      end,
+    })
+<
+Set `on_change_dir = false` to disable.
+
+==============================================================================
+9. KEYMAPS                                                      *limb-keymaps*
+
+The plugin ships no default keymaps. Suggested bindings:
+>lua
+    local map = vim.keymap.set
+    map("n", "<leader>gp", "<cmd>LimbPick<cr>",    { desc = "limb pick" })
+    map("n", "<leader>gs", "<cmd>LimbStatus<cr>",  { desc = "limb status" })
+    map("n", "<leader>gS", "<cmd>LimbStatus!<cr>", { desc = "limb status (all)" })
+    map("n", "<leader>ga", "<cmd>LimbAdd<cr>",     { desc = "limb add" })
+    map("n", "<leader>gr", "<cmd>LimbRemove<cr>",  { desc = "limb remove" })
+    map("n", "<leader>gu", "<cmd>LimbUpdate<cr>",  { desc = "limb update" })
+    map("n", "<leader>gc", "<cmd>LimbClean<cr>",   { desc = "limb clean" })
+<
+
+vim:tw=78:ts=8:ft=help:norl:
