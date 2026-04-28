@@ -12,11 +12,13 @@ Six dedicated commands and a generic passthrough, all backed by the
 
 ### Worktree flow
 
-- `:LimbPick`. Fuzzy picker over every worktree across configured
+- `:LimbPick[!]`. Fuzzy picker over every worktree across configured
   projects. Changes directory to the selection and, when installed,
   refreshes [snacks.nvim](https://github.com/folke/snacks.nvim) file
   pickers. Bare and prunable entries are filtered out; locked entries
-  are surfaced with a `[locked]` marker.
+  are surfaced with a `[locked]` marker. Bang runs
+  `limb update --fetch-only --all` first so ahead / behind counts are
+  current.
 - `:LimbStatus[!]`. Opens `limb status` in a centered floating window.
   Falls back to `limb status --all` automatically when Neovim's cwd is
   outside any tracked repo. The bang form forces `--all` regardless.
@@ -28,7 +30,9 @@ Six dedicated commands and a generic passthrough, all backed by the
   `vim.ui.input` unless the bang is used (which also passes
   `--force`).
 - `:LimbUpdate[!]`. Fetch + fast-forward worktrees in the current
-  repo. Bang passes `--ff-only`.
+  repo. Bang passes `--ff-only`. For cross-repo update, use the typed
+  Lua API (`require("limb").update({ all = true })`) or the dispatch
+  passthrough (`:Limb update --all`).
 - `:LimbClean[!]`. Remove worktrees whose upstream branches are gone.
   Without the bang, runs `--dry-run --json` first and shows the
   candidates in a float with `a` to apply.
@@ -119,11 +123,15 @@ The plugin ships no default keymaps. Wire your own:
 ```lua
 local map = vim.keymap.set
 map("n", "<leader>gp", "<cmd>LimbPick<cr>", { desc = "limb pick" })
+map("n", "<leader>gP", "<cmd>LimbPick!<cr>", { desc = "limb pick (refresh first)" })
 map("n", "<leader>gs", "<cmd>LimbStatus<cr>", { desc = "limb status" })
 map("n", "<leader>gS", "<cmd>LimbStatus!<cr>", { desc = "limb status (all repos)" })
 map("n", "<leader>ga", "<cmd>LimbAdd<cr>", { desc = "limb add" })
 map("n", "<leader>gr", "<cmd>LimbRemove<cr>", { desc = "limb remove" })
 map("n", "<leader>gu", "<cmd>LimbUpdate<cr>", { desc = "limb update" })
+map("n", "<leader>gU", function()
+  require("limb").update({ all = true })
+end, { desc = "limb update (every repo)" })
 map("n", "<leader>gc", "<cmd>LimbClean<cr>", { desc = "limb clean" })
 ```
 

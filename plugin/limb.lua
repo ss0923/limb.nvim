@@ -3,9 +3,12 @@ if vim.g.loaded_limb == 1 then
 end
 vim.g.loaded_limb = 1
 
-vim.api.nvim_create_user_command("LimbPick", function()
-  require("limb").pick()
-end, { desc = "Pick a git worktree across configured projects." })
+vim.api.nvim_create_user_command("LimbPick", function(opts)
+  require("limb").pick({ fetch = opts.bang })
+end, {
+  desc = "Pick a git worktree across configured projects. Bang = --fetch first.",
+  bang = true,
+})
 
 vim.api.nvim_create_user_command("LimbStatus", function(opts)
   require("limb").status({ all = opts.bang })

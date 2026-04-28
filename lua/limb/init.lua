@@ -114,42 +114,76 @@ local function goto_path(path)
   end
 end
 
----@param opts? { all?: boolean }
+---@class limb.PickOpts
+---@field all? boolean   -- default true; cross-repo
+---@field fetch? boolean -- default false; runs `limb update --fetch-only` before picking
+
+---@param opts? limb.PickOpts
 function M.pick(opts)
   opts = opts or {}
   local all = opts.all ~= false
-  fetch_entries(all, function(decoded, err)
-    if err then
-      util.notify(err, vim.log.levels.ERROR)
-      return
-    end
-    local list = selectable(decoded or {})
-    if #list == 0 then
-      util.notify("no selectable worktrees", vim.log.levels.WARN)
-      return
-    end
-    local left_width = compute_left_width(list)
-    local items = {}
-    local by_display = {}
-    for _, e in ipairs(list) do
-      local display = format_row(e, left_width)
-      table.insert(items, display)
-      by_display[display] = e.path
-    end
-    vim.ui.select(items, { prompt = "worktrees" }, function(choice)
-      if choice then
-        goto_path(by_display[choice])
+  local fetch = opts.fetch == true
+
+  local function open_picker()
+    fetch_entries(all, function(decoded, err)
+      if err then
+        util.notify(err, vim.log.levels.ERROR)
+        return
       end
+      local list = selectable(decoded or {})
+      if #list == 0 then
+        util.notify("no selectable worktrees", vim.log.levels.WARN)
+        return
+      end
+      local left_width = compute_left_width(list)
+      local items = {}
+      local by_display = {}
+      for _, e in ipairs(list) do
+        local display = format_row(e, left_width)
+        table.insert(items, display)
+        by_display[display] = e.path
+      end
+      vim.ui.select(items, { prompt = "worktrees" }, function(choice)
+        if choice then
+          goto_path(by_display[choice])
+        end
+      end)
     end)
+  end
+
+  if not fetch then
+    return open_picker()
+  end
+
+  local update_args = { "update", "--fetch-only", "-y", "-q" }
+  if all then
+    table.insert(update_args, "--all")
+  end
+  util.notify("fetching remotes...")
+  util.run_async(update_args, function(result)
+    if result.code ~= 0 then
+      util.notify("fetch failed; opening picker with stale data", vim.log.levels.WARN)
+    end
+    open_picker()
   end)
 end
 
 ---@class limb.StatusOpts
 ---@field all? boolean
+---@field fetch? boolean -- passes --fetch so `limb status` runs `git fetch` per repo first
 
 ---@param opts? limb.StatusOpts
 function M.status(opts)
   opts = opts or {}
+  local fetch = opts.fetch == true
+
+  local function with_fetch(args)
+    if fetch then
+      table.insert(args, "--fetch")
+    end
+    return args
+  end
+
   local function show(stdout)
     float.open({
       lines = float.lines_from(stdout),
@@ -159,7 +193,7 @@ function M.status(opts)
   end
 
   if opts.all then
-    util.run_async({ "status", "--all" }, function(result)
+    util.run_async(with_fetch({ "status", "--all" }), function(result)
       if result.code == 0 then
         show(result.stdout or "")
       else
@@ -169,13 +203,13 @@ function M.status(opts)
     return
   end
 
-  util.run_async({ "status" }, function(result)
+  util.run_async(with_fetch({ "status" }), function(result)
     if result.code == 0 then
       show(result.stdout or "")
       return
     end
     if (result.stderr or ""):match("not a git repository") then
-      util.run_async({ "status", "--all" }, function(r2)
+      util.run_async(with_fetch({ "status", "--all" }), function(r2)
         if r2.code == 0 then
           show(r2.stdout or "")
         else
@@ -310,6 +344,7 @@ function M.remove(opts)
 end
 
 ---@class limb.UpdateOpts
+---@field all? boolean         -- fetch + ff across every repo under projects.roots
 ---@field ff_only? boolean
 ---@field fetch_only? boolean
 
@@ -317,6 +352,9 @@ end
 function M.update(opts)
   opts = opts or {}
   local args = { "update" }
+  if opts.all then
+    table.insert(args, "--all")
+  end
   if opts.ff_only then
     table.insert(args, "--ff-only")
   end

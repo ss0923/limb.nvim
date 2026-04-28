@@ -247,6 +247,172 @@ run("status bang skips fallback path", function()
   eq("bang did not run plain status", commands[2], nil)
 end)
 
+run("pick fetch=true runs update --fetch-only --all before listing", function()
+  local limb = require_fresh("limb")
+  limb.setup()
+  silence_notify()
+  local commands = {}
+  mock_system({
+    ["limb update --fetch-only -y -q --all"] = { code = 0, stdout = "" },
+    ["limb --json list --all"] = {
+      code = 0,
+      stdout = vim.json.encode({
+        { repo = "alpha", path = "/a/b1", name = "b1", branch = "main" },
+      }),
+    },
+  })
+  local original_system = vim.system
+  vim.system = function(cmd, opts, on_done)
+    table.insert(commands, table.concat(cmd, " "))
+    return original_system(cmd, opts, on_done)
+  end
+  vim.ui.select = function(_items, _opts, _cb) end
+  limb.pick({ fetch = true })
+  vim.wait(500, function()
+    return #commands >= 2
+  end)
+  eq("ran update --fetch-only --all first", commands[1], "limb update --fetch-only -y -q --all")
+  eq("then ran list --all", commands[2], "limb --json list --all")
+end)
+
+run("pick fetch=true with all=false omits --all from update", function()
+  local limb = require_fresh("limb")
+  limb.setup()
+  silence_notify()
+  local commands = {}
+  mock_system({
+    ["limb update --fetch-only -y -q"] = { code = 0, stdout = "" },
+    ["limb --json list"] = {
+      code = 0,
+      stdout = vim.json.encode({
+        { repo = "alpha", path = "/a/b1", name = "b1", branch = "main" },
+      }),
+    },
+  })
+  local original_system = vim.system
+  vim.system = function(cmd, opts, on_done)
+    table.insert(commands, table.concat(cmd, " "))
+    return original_system(cmd, opts, on_done)
+  end
+  vim.ui.select = function(_items, _opts, _cb) end
+  limb.pick({ all = false, fetch = true })
+  vim.wait(500, function()
+    return #commands >= 2
+  end)
+  eq("ran update --fetch-only without --all", commands[1], "limb update --fetch-only -y -q")
+  eq("then ran list without --all", commands[2], "limb --json list")
+end)
+
+run("pick fetch=true opens picker even when fetch fails", function()
+  local limb = require_fresh("limb")
+  limb.setup()
+  silence_notify()
+  local commands = {}
+  mock_system({
+    ["limb update --fetch-only -y -q --all"] = { code = 1, stderr = "boom" },
+    ["limb --json list --all"] = {
+      code = 0,
+      stdout = vim.json.encode({
+        { repo = "alpha", path = "/a/b1", name = "b1", branch = "main" },
+      }),
+    },
+  })
+  local original_system = vim.system
+  vim.system = function(cmd, opts, on_done)
+    table.insert(commands, table.concat(cmd, " "))
+    return original_system(cmd, opts, on_done)
+  end
+  local items
+  vim.ui.select = function(it, _opts, _cb)
+    items = it
+  end
+  limb.pick({ fetch = true })
+  vim.wait(500, function()
+    return items ~= nil
+  end)
+  check("picker still opened after fetch failure", items ~= nil)
+end)
+
+run("status fetch=true appends --fetch", function()
+  local limb = require_fresh("limb")
+  limb.setup()
+  silence_notify()
+  local commands = {}
+  mock_system({
+    ["limb status --fetch"] = { code = 0, stdout = "NAME\n" },
+  })
+  local original_system = vim.system
+  vim.system = function(cmd, opts, on_done)
+    table.insert(commands, table.concat(cmd, " "))
+    return original_system(cmd, opts, on_done)
+  end
+  limb.status({ fetch = true })
+  vim.wait(500, function()
+    return #commands >= 1
+  end)
+  eq("ran status --fetch", commands[1], "limb status --fetch")
+end)
+
+run("status all=true fetch=true combines flags", function()
+  local limb = require_fresh("limb")
+  limb.setup()
+  silence_notify()
+  local commands = {}
+  mock_system({
+    ["limb status --all --fetch"] = { code = 0, stdout = "REPO  NAME\n" },
+  })
+  local original_system = vim.system
+  vim.system = function(cmd, opts, on_done)
+    table.insert(commands, table.concat(cmd, " "))
+    return original_system(cmd, opts, on_done)
+  end
+  limb.status({ all = true, fetch = true })
+  vim.wait(500, function()
+    return #commands >= 1
+  end)
+  eq("ran status --all --fetch", commands[1], "limb status --all --fetch")
+end)
+
+run("update all=true appends --all", function()
+  local limb = require_fresh("limb")
+  limb.setup()
+  silence_notify()
+  local commands = {}
+  mock_system({
+    ["limb update --all"] = { code = 0, stdout = "ok\n" },
+  })
+  local original_system = vim.system
+  vim.system = function(cmd, opts, on_done)
+    table.insert(commands, table.concat(cmd, " "))
+    return original_system(cmd, opts, on_done)
+  end
+  limb.update({ all = true })
+  vim.wait(500, function()
+    return #commands >= 1
+  end)
+  eq("ran update --all", commands[1], "limb update --all")
+end)
+
+run("update all=true fetch_only=true combines flags", function()
+  local limb = require_fresh("limb")
+  limb.setup()
+  silence_notify()
+  local commands = {}
+  mock_system({
+    ["limb update --all --fetch-only"] = { code = 0, stdout = "ok\n" },
+  })
+  local original_system = vim.system
+  vim.system = function(cmd, opts, on_done)
+    table.insert(commands, table.concat(cmd, " "))
+    return original_system(cmd, opts, on_done)
+  end
+  limb.update({ all = true, fetch_only = true })
+  vim.wait(500, function()
+    return #commands >= 1
+  end)
+  eq("ran update --all --fetch-only", commands[1], "limb update --all --fetch-only")
+end)
+
 run("dispatch shells out and renders", function()
   local limb = require_fresh("limb")
   limb.setup()

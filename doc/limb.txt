@@ -55,7 +55,7 @@ Calling `setup()` is optional. Registration happens in plugin/limb.lua.
 ------------------------------------------------------------------------------
 4.1 :LimbPick                                                       *:LimbPick*
 
-    :LimbPick
+    :LimbPick[!]
 
 Fuzzy picker over every worktree across all configured `projects.roots`.
 Selecting an entry changes Neovim's cwd to it. Inside tmux, also writes a
@@ -63,6 +63,10 @@ Selecting an entry changes Neovim's cwd to it. Inside tmux, also writes a
 
 Bare and prunable entries are filtered out. Locked entries are surfaced
 with a `[locked]` marker.
+
+The bang form (`:LimbPick!`) runs `limb update --fetch-only --all` first
+so ahead/behind counts in the picker reflect the latest remote state.
+The picker still opens if the fetch fails (a warning is emitted).
 
 ------------------------------------------------------------------------------
 4.2 :LimbStatus                                                   *:LimbStatus*
@@ -72,6 +76,16 @@ with a `[locked]` marker.
 Opens `limb status` in a centered floating window. When Neovim's cwd is
 outside any tracked repo, falls back to `limb status --all` automatically.
 The bang form (`:LimbStatus!`) forces `--all` regardless of cwd.
+
+To refresh remote-tracking refs before computing status, call the typed
+Lua API directly: >lua
+    require("limb").status({ fetch = true })
+    require("limb").status({ all = true, fetch = true })
+<
+or use the dispatch passthrough: >vim
+    :Limb status --fetch
+    :Limb status --all --fetch
+<
 
 ------------------------------------------------------------------------------
 4.3 :LimbAdd                                                         *:LimbAdd*
@@ -105,6 +119,16 @@ bang form also passes `--force` to limb (skip git's safety prompts).
 Fetch + fast-forward worktrees in the current repo. Long-running; runs
 asynchronously and notifies on start and completion. Output is shown in a
 floating window. The bang form passes `--ff-only` (skip the fetch step).
+
+For a cross-repo update across every entry under `projects.roots`, call
+the typed Lua API or use the dispatch passthrough: >lua
+    require("limb").update({ all = true })
+    require("limb").update({ all = true, fetch_only = true })
+<
+or: >vim
+    :Limb update --all
+    :Limb update --all --fetch-only
+<
 
 ------------------------------------------------------------------------------
 4.6 :LimbClean                                                     *:LimbClean*
@@ -238,11 +262,15 @@ The plugin ships no default keymaps. Suggested bindings:
 >lua
     local map = vim.keymap.set
     map("n", "<leader>gp", "<cmd>LimbPick<cr>",    { desc = "limb pick" })
+    map("n", "<leader>gP", "<cmd>LimbPick!<cr>",   { desc = "limb pick (refresh first)" })
     map("n", "<leader>gs", "<cmd>LimbStatus<cr>",  { desc = "limb status" })
     map("n", "<leader>gS", "<cmd>LimbStatus!<cr>", { desc = "limb status (all)" })
     map("n", "<leader>ga", "<cmd>LimbAdd<cr>",     { desc = "limb add" })
     map("n", "<leader>gr", "<cmd>LimbRemove<cr>",  { desc = "limb remove" })
     map("n", "<leader>gu", "<cmd>LimbUpdate<cr>",  { desc = "limb update" })
+    map("n", "<leader>gU", function()
+      require("limb").update({ all = true })
+    end, { desc = "limb update (every repo)" })
     map("n", "<leader>gc", "<cmd>LimbClean<cr>",   { desc = "limb clean" })
 <
 

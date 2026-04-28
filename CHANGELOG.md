@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/ss0923/limb.nvim/releases/tag/v0.3.0) - 2026-04-28
+
+### Added
+
+- `:LimbPick!` (bang form) runs `limb update --fetch-only --all` before
+  opening the picker so ahead/behind counts reflect the latest remote
+  state. The picker still opens if the fetch fails (a warning is
+  emitted).
+- `M.pick({ fetch })`, `M.status({ fetch })`, `M.update({ all })` typed
+  options on the Lua API. Mirror limb 0.2.0's new `--fetch` and `--all`
+  flags so keymap authors can wire them without dropping to the
+  dispatch passthrough.
+- Test coverage for the new flag passthroughs in `tests/run.lua`.
+
+### Changed
+
+- Suggested keymaps now include `<leader>gP` for `:LimbPick!`
+  (refresh-then-pick) and `<leader>gU` for cross-repo update.
+
 ## [0.2.0](https://github.com/ss0923/limb.nvim/releases/tag/v0.2.0) - 2026-04-26
 
 ### Added
